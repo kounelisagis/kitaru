@@ -116,12 +116,17 @@ async def test_upload_blob_too_large_across_chunks(service: BlobService) -> None
 
 
 async def test_get_blob(service: BlobService) -> None:
-    """Get a blob's metadata by id."""
+    """Get a blob's metadata by id without loading its content."""
     created, _ = await service.upload_blob(
         _chunks(b"content"), media_type="text/plain", actor=ACTOR
     )
     loaded = await service.get_blob(created.id, actor=ACTOR)
-    assert loaded == created
+    assert loaded.id == created.id
+    assert loaded.sha256 == created.sha256
+    assert loaded.size == created.size
+    assert loaded.media_type == created.media_type
+    assert loaded.created == created.created
+    assert loaded.data == b""
 
 
 async def test_get_blob_not_found(service: BlobService) -> None:

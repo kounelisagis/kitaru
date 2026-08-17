@@ -161,7 +161,7 @@ class SQLBlobRepository(BaseSQLRepository[BlobORM]):
             BlobInUse: The blob is referenced by a plugin version or an
                 import task.
         """
-        row = await self._get_row(blob_id)
+        row = await self._get_row(blob_id, deferred_columns=(BlobORM.data,))
         await self._session.delete(row)
         await self._flush(
             {

@@ -89,10 +89,10 @@ class BlobService:
             BlobNotFound: No blob has this id.
 
         Returns:
-            Stored blob.
+            Stored blob metadata with an empty content placeholder.
         """
         check_task_blob_read(blob_id, actor)
-        return await self._repository.get(blob_id)
+        return await self._repository.get_metadata(blob_id)
 
     async def download_blob(self, blob_id: uuid.UUID, actor: AuthContext) -> Blob:
         """Get a blob's content by id.
