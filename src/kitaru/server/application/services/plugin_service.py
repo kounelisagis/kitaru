@@ -184,7 +184,7 @@ class PluginService:
             Created plugin version.
         """
         if isinstance(source, ScriptPluginSource):
-            await self._blob_repository.get(source.blob_id)
+            await self._blob_repository.get_metadata(source.blob_id)
         version = await self._repository.create_version(
             plugin_id, source, display_version
         )

@@ -18,8 +18,14 @@ import uuid
 from collections.abc import AsyncGenerator
 
 import pytest
+from sqlalchemy import event
 
-from conftest import FakeBlobRepository, pg_session, postgres_available
+from conftest import (
+    FakeBlobRepository,
+    pg_session,
+    pg_session_with_engine,
+    postgres_available,
+)
 from kitaru.server.adapters.db.repositories.account_repository import (
     SQLAccountRepository,
 )
@@ -110,6 +116,28 @@ async def test_get_not_found(setup: Setup) -> None:
         await repository.get(missing_id)
 
 
+async def test_get_metadata(setup: Setup) -> None:
+    """Load a stored blob's metadata without its content."""
+    repository, owner_id = setup
+    created, _ = await repository.create(_blob(owner_id))
+    loaded = await repository.get_metadata(created.id)
+    assert loaded.id == created.id
+    assert loaded.owner_id == owner_id
+    assert loaded.sha256 == created.sha256
+    assert loaded.size == created.size
+    assert loaded.media_type == created.media_type
+    assert loaded.created == created.created
+    assert loaded.data == b""
+
+
+async def test_get_metadata_not_found(setup: Setup) -> None:
+    """Raise for an unknown blob id on the metadata path."""
+    repository, _ = setup
+    missing_id = uuid.uuid4()
+    with pytest.raises(BlobNotFound, match=f"Blob {missing_id} was not found"):
+        await repository.get_metadata(missing_id)
+
+
 async def test_delete(setup: Setup) -> None:
     """Delete a stored blob."""
     repository, owner_id = setup
@@ -148,3 +176,31 @@ async def test_delete_in_use(setup: Setup) -> None:
 
     with pytest.raises(BlobInUse, match=f"Blob {blob.id} is in use"):
         await repository.delete(blob.id)
+
+
+async def test_metadata_and_delete_skip_content_column() -> None:
+    """Emit no SQL touching the content column outside the content load."""
+    if not await postgres_available():
+        pytest.skip("PostgreSQL is not reachable")
+    async with pg_session_with_engine() as (session, engine):
+        statements: list[str] = []
+        event.listen(
+            engine.sync_engine,
+            "before_cursor_execute",
+            lambda conn, cursor, statement, *args: statements.append(statement),
+        )
+        repository = SQLBlobRepository(session)
+        owner = await SQLAccountRepository(session).create(Account(name="owner"))
+        created, _ = await repository.create(_blob(owner.id))
+
+        session.expire_all()
+        statements.clear()
+        loaded = await repository.get(created.id)
+        assert loaded.data == b"content"
+        assert any("blob.data" in s for s in statements)
+
+        session.expire_all()
+        statements.clear()
+        await repository.get_metadata(created.id)
+        await repository.delete(created.id)
+        assert not any("blob.data" in s for s in statements)

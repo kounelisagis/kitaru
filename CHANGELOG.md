@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Fixed
+
+- Blob metadata reads, blob deletion, and plugin version validation no longer load the full blob content from the database.
+
 ## [0.22.0rc8]
 
 ### Changed
